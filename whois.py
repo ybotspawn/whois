@@ -1,10 +1,10 @@
 __author__ = 'ybot'
-# customer_contents = json.loads(contents)
 from dateutil.parser import parse
 import types
 import urllib2
 import json
-headers = {'Accept': 'application/json'} #'Content-Type': 'application/json',
+import socket
+headers = {'Accept': 'application/json'}
 
 
 class WHOISResponse(object):
@@ -21,38 +21,52 @@ class WHOISResponse(object):
     comments = None
     startAddress = None
     endAddress = None
-    customerName = None
+    customerRef = None
+    orgRef = None
 
 def get_by_partial_name(partial_name):
-    query = "http://whois.arin.net/rest/customers;name={0}*".format(partial_name)
-    contents = __get_content__(query)
-    json_content = json.loads(contents)
+    query = "http://whois.arin.net/rest/customers;name={0}*".format(partial_name.replace(" ", "%20")) # substring space for %20
+    json_content = __get_content__(query)
     customers = json_content["customers"]["customerRef"]
 
-    # if contents contain more than one, else build whois query
-    if len(customers) == 1:
-        #__query_customer_link__(json_content["$"])  # u'http://whois.arin.net/rest/customer/C01123650'
-        #__query_customer_link__(c["$"])  # u'http://whois.arin.net/rest/customer/C01123650'
-        pass
+    if isinstance(customers, types.ListType):
+        responses = map(lambda c: __query_company_link__(c["$"]), customers)
     else:
-        responses = map(lambda c: __query_customer_link__(c["$"]), customers)
+        responses = []
+        responses.append(__query_company_link__(customers["$"]))  # u'http://whois.arin.net/rest/customer/C01123650'
+
     return responses
+
+
+def get_by_company(query):
+    if "http://" in query:
+        return __query_company_link__(query)
+    # elif org/COMPNAY works
+    # elif customer/COMPANY works
+
+
+def get_by_host(host):
+    ip = socket.gethostbyname(host)
+    return get_by_ip_address(ip)
 
 
 def get_by_ip_address(ipaddress):
     # validate ip address
-    # http://whois.arin.net/rest/ip/24.170.225.12
-    pass
+    query = "http://whois.arin.net/rest/ip/{0}".format(ipaddress)
+    json_content = __get_content__(query)
+    customer = json_content["net"]
+    return __build_whois_response__(customer)
 
 
-def __query_customer_link__(customerLink):
-    contents = __get_content__(customerLink)
-    json_content = json.loads(contents)
-    return __build_whois_response__(json_content)
+def __query_company_link__(link):
+    json_content = __get_content__(link)
+    if "org" in json_content:
+        return __build_whois_response__(json_content["org"])
+    elif "customer" in json_content:
+        return __build_whois_response__(json_content["customer"])
 
 
-def __build_whois_response__(customer_content):
-    customer = customer_content["customer"]
+def __build_whois_response__(customer):
     w = WHOISResponse()
     for prop in dir(WHOISResponse):
         if 'Date' in prop:
@@ -67,7 +81,8 @@ def __build_whois_response__(customer_content):
                 street = line["$"]
             setattr(w, prop, street)
         elif prop == "country":
-            setattr(w, prop, customer["iso3166-1"]["code3"]["$"])
+            if "iso3166-1" in customer:
+                setattr(w, prop, customer["iso3166-1"]["code3"]["$"])
         elif prop == "state":
             if "iso3166-2" in customer:
                 setattr(w, prop, customer["iso3166-2"]["$"])
@@ -80,4 +95,4 @@ def __build_whois_response__(customer_content):
 def __get_content__(link):
     req = urllib2.Request(link, None, headers)
     contents = urllib2.urlopen(req).read()
-    return contents
+    return json.loads(contents)
