@@ -6,6 +6,7 @@ import urllib2
 import json
 headers = {'Accept': 'application/json'} #'Content-Type': 'application/json',
 
+
 class WHOISResponse(object):
     handle = None
     name = None
@@ -30,16 +31,14 @@ def get_by_partial_name(partial_name):
 
     # if contents contain more than one, else build whois query
     if len(customers) == 1:
+        #__query_customer_link__(json_content["$"])  # u'http://whois.arin.net/rest/customer/C01123650'
+        #__query_customer_link__(c["$"])  # u'http://whois.arin.net/rest/customer/C01123650'
         pass
     else:
-        #__parse_query_response__(json_content)
         responses = map(lambda c: __query_customer_link__(c["$"]), customers)
     return responses
 
 
-# These two should really be the same, is there any syntactic sugar to handle this?
-#__query_customer_link__(json_content["$"])  # u'http://whois.arin.net/rest/customer/C01123650'
-#__query_customer_link__(c["$"])  # u'http://whois.arin.net/rest/customer/C01123650'
 def get_by_ip_address(ipaddress):
     # validate ip address
     # http://whois.arin.net/rest/ip/24.170.225.12
